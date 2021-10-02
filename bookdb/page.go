@@ -3,10 +3,8 @@ package bookdb
 import (
 	"database/sql"
 	"errors"
-)
 
-const (
-	InvalidPageID = -1
+	"github.com/onorbit/letterite/consts"
 )
 
 var (
@@ -79,14 +77,14 @@ func CreatePage(parentPageID int64, subject string) (int64, error) {
 	tx, err := gDatabase.Begin()
 
 	// if the page belongs to existing parent, perform check.
-	if parentPageID != InvalidPageID {
+	if parentPageID != consts.InvalidPageID {
 		stmt := tx.Stmt(gStmtPageExists)
 		rows, err := stmt.Query(parentPageID)
 		if err != nil {
 			stmt.Close()
 			tx.Rollback()
 
-			return InvalidPageID, err
+			return consts.InvalidPageID, err
 		}
 
 		// parent page not found.
@@ -94,7 +92,7 @@ func CreatePage(parentPageID int64, subject string) (int64, error) {
 			stmt.Close()
 			tx.Rollback()
 
-			return InvalidPageID, ErrParentPageNotFound
+			return consts.InvalidPageID, ErrParentPageNotFound
 		}
 
 		stmt.Close()
@@ -107,19 +105,19 @@ func CreatePage(parentPageID int64, subject string) (int64, error) {
 
 	if err != nil {
 		tx.Rollback()
-		return InvalidPageID, err
+		return consts.InvalidPageID, err
 	}
 
 	newPageID, err := result.LastInsertId()
 	if err != nil {
 		tx.Rollback()
-		return InvalidPageID, err
+		return consts.InvalidPageID, err
 	}
 
 	err = tx.Commit()
 	if err != nil {
 		tx.Rollback()
-		return InvalidPageID, err
+		return consts.InvalidPageID, err
 	}
 
 	return newPageID, nil

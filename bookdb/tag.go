@@ -1,37 +1,40 @@
 package bookdb
 
 func initTags() error {
-	// create tags table
-	stmt, err := gDatabase.Prepare(`CREATE TABLE IF NOT EXISTS tags (
-										id INTEGER PRIMARY KEY,
-										tag TEXT
-									)`)
-	if err != nil {
-		return err
-	}
-	stmt.Exec()
+	// table schemas
+	schemaTags := `
+		CREATE TABLE IF NOT EXISTS tags (
+			id INTEGER PRIMARY KEY,
+			tag TEXT
+		)`
 
-	// create tags-pages relation table
-	stmt, err = gDatabase.Prepare(`CREATE TABLE IF NOT EXISTS pages_tags (
-										page_id INTEGER,
-										tag_id INTEGER
-									)`)
-	if err != nil {
-		return err
-	}
-	stmt.Exec()
+	schemaPagesTags := `
+		CREATE TABLE IF NOT EXISTS pages_tags (
+			page_id INTEGER,
+			tag_id INTEGER
+		)`
 
-	stmt, err = gDatabase.Prepare("CREATE INDEX IF NOT EXISTS pages_tags__page_id ON pages_tags (page_id)")
-	if err != nil {
+	// prepare tags table and related index
+	if _, err := gDatabase.Exec(schemaTags); err != nil {
 		return err
 	}
-	stmt.Exec()
 
-	stmt, err = gDatabase.Prepare("CREATE INDEX IF NOT EXISTS pages_tags__tag_id ON pages_tags (tag_id)")
-	if err != nil {
+	if _, err := gDatabase.Exec("CREATE INDEX IF NOT EXISTS tags__tag ON tags (tag)"); err != nil {
 		return err
 	}
-	stmt.Exec()
+
+	// prepare pages-tags relation table and related indices
+	if _, err := gDatabase.Exec(schemaPagesTags); err != nil {
+		return err
+	}
+
+	if _, err := gDatabase.Exec("CREATE INDEX IF NOT EXISTS pages_tags__page_id ON pages_tags (page_id)"); err != nil {
+		return err
+	}
+
+	if _, err := gDatabase.Exec("CREATE INDEX IF NOT EXISTS pages_tags__tag_id ON pages_tags (tag_id)"); err != nil {
+		return err
+	}
 
 	return nil
 }

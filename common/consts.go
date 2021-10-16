@@ -1,4 +1,4 @@
-package consts
+package common
 
 const (
 	InvalidPageID    = -1

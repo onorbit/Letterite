@@ -20,6 +20,7 @@ func main() {
 
 	// page handlers.
 	e.POST("/apis/v1/page", handler.CreatePage)
+	e.GET("/apis/v1/pages/parent/:parentPageID", handler.GetPagesByParent)
 	e.GET("/apis/v1/page/:id", handler.GetPage)
 	e.POST("/apis/v1/page/:id", handler.UpdatePage)
 	e.DELETE("/apis/v1/page/:id", handler.DeletePage)

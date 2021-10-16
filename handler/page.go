@@ -8,13 +8,6 @@ import (
 	"github.com/onorbit/letterite/page"
 )
 
-// Response structures
-type CreatePageResponse struct {
-	PageID       int64  `json:"pageID"`
-	Subject      string `json:"subject"`
-	ParentPageID int64  `json:"parentPageID"`
-}
-
 // CreatePage makes a new blank page with given subject and parentID.
 func CreatePage(c echo.Context) error {
 	subject := c.FormValue("subject")
@@ -29,18 +22,32 @@ func CreatePage(c echo.Context) error {
 		return c.NoContent(http.StatusBadRequest)
 	}
 
-	pageID, err := page.CreatePage(parentPageID, subject)
+	page, err := page.CreatePage(parentPageID, subject)
 	if err != nil {
 		return c.NoContent(http.StatusInternalServerError)
 	}
 
-	response := CreatePageResponse{
-		PageID:       pageID,
-		Subject:      subject,
-		ParentPageID: parentPageID,
+	return c.JSON(http.StatusOK, page)
+}
+
+// GetPagesByParent returns brief information of children pages under designated parent.
+func GetPagesByParent(c echo.Context) error {
+	parentPageIDStr := c.Param("parentPageID")
+	if len(parentPageIDStr) == 0 {
+		return c.NoContent(http.StatusBadRequest)
 	}
 
-	return c.JSON(http.StatusOK, response)
+	parentPageId, err := strconv.ParseInt(parentPageIDStr, 16, 64)
+	if err != nil {
+		return c.NoContent(http.StatusBadRequest)
+	}
+
+	pages, err := page.GetPagesByParent(parentPageId)
+	if err != nil {
+		return c.NoContent(http.StatusInternalServerError)
+	}
+
+	return c.JSON(http.StatusOK, pages)
 }
 
 func GetPage(c echo.Context) error {

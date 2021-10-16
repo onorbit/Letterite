@@ -3,7 +3,7 @@ package bookdb
 import (
 	"errors"
 
-	"github.com/onorbit/letterite/consts"
+	"github.com/onorbit/letterite/common"
 )
 
 var (
@@ -45,23 +45,29 @@ func initPages() error {
 	return nil
 }
 
-func CreatePage(parentPageID int64, subject string) (newPageID int64, err error) {
+func CreatePage(parentPageID int64, subject string) (newPage common.Page, err error) {
+	newPage = common.Page{
+		ID:           common.InvalidPageID,
+		ParentPageID: parentPageID,
+		Subject:      subject,
+	}
+
 	tx, err := gDatabase.Begin()
 	if err != nil {
-		return consts.InvalidPageID, err
+		return newPage, err
 	}
 
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
 
-			newPageID = consts.InvalidPageID
+			newPage.ID = common.InvalidPageID
 			err = r.(error)
 		}
 	}()
 
 	// if the page belongs to existing parent, perform check.
-	if parentPageID != consts.RootPageID {
+	if parentPageID != common.RootPageID {
 		rows, err := gDatabase.Query("SELECT 1 FROM pages WHERE id = ?", parentPageID)
 		if err != nil {
 			rows.Close()
@@ -78,7 +84,7 @@ func CreatePage(parentPageID int64, subject string) (newPageID int64, err error)
 
 	// insert the page.
 	result := gDatabase.MustExec("INSERT INTO pages (parent_id, subject) VALUES (?, ?)", parentPageID, subject)
-	newPageID, err = result.LastInsertId()
+	newPageID, err := result.LastInsertId()
 	if err != nil {
 		panic(err)
 	}
@@ -88,5 +94,40 @@ func CreatePage(parentPageID int64, subject string) (newPageID int64, err error)
 		panic(err)
 	}
 
+	newPage.ID = newPageID
 	return
+}
+
+func GetPagesByParent(parentPageID int64) ([]common.PageSummary, error) {
+	type PageSummary struct {
+		ID                int64  `db:"id"`
+		ParentPageID      int64  `db:"parent_id"`
+		Subject           string `db:"subject"`
+		ChildrenPageCount int    `db:"children_count"`
+		ContentCount      int    `db:"content_count"`
+	}
+
+	query := `
+		SELECT A.*, COUNT(B.id) AS children_count, COUNT(C.page_id) AS content_count
+		FROM pages A
+			LEFT JOIN pages B ON B.parent_id = A.id
+			LEFT JOIN page_contents C ON C.page_id = A.id
+		WHERE A.parent_id = $1
+		GROUP BY A.id`
+
+	entries := []PageSummary{}
+	if err := gDatabase.Select(&entries, query, parentPageID); err != nil {
+		return nil, err
+	}
+
+	ret := make([]common.PageSummary, len(entries))
+	for i, entry := range entries {
+		ret[i].ID = entry.ID
+		ret[i].ParentPageID = entry.ParentPageID
+		ret[i].Subject = entry.Subject
+		ret[i].ChildrenPageCount = entry.ChildrenPageCount
+		ret[i].ContentCount = entry.ContentCount
+	}
+
+	return ret, nil
 }

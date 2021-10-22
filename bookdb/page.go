@@ -7,7 +7,9 @@ import (
 )
 
 var (
-	ErrParentPageNotFound = errors.New("parent page not found")
+	ErrPageNotFound          = errors.New("page not found")
+	ErrParentPageNotFound    = errors.New("parent page not found")
+	ErrPageIsNotInRecycleBin = errors.New("page is not in recycle bin")
 )
 
 func initPages() error {
@@ -45,6 +47,16 @@ func initPages() error {
 	return nil
 }
 
+func isPageExists(pageID int64) (bool, error) {
+	rows, err := gDatabase.Query("SELECT 1 FROM pages WHERE id = ?", pageID)
+	if err != nil {
+		return false, err
+	}
+
+	defer rows.Close()
+	return rows.Next(), nil
+}
+
 func CreatePage(parentPageID int64, subject string) (newPage common.Page, err error) {
 	newPage = common.Page{
 		ID:           common.InvalidPageID,
@@ -68,18 +80,11 @@ func CreatePage(parentPageID int64, subject string) (newPage common.Page, err er
 
 	// if the page belongs to existing parent, perform check.
 	if parentPageID != common.RootPageID {
-		rows, err := gDatabase.Query("SELECT 1 FROM pages WHERE id = ?", parentPageID)
-		if err != nil {
-			rows.Close()
+		if isParentExists, err := isPageExists(parentPageID); err != nil {
 			panic(err)
-		}
-
-		if !rows.Next() {
-			rows.Close()
+		} else if !isParentExists {
 			panic(ErrParentPageNotFound)
 		}
-
-		rows.Close()
 	}
 
 	// insert the page.
@@ -96,6 +101,88 @@ func CreatePage(parentPageID int64, subject string) (newPage common.Page, err er
 
 	newPage.ID = newPageID
 	return
+}
+
+func UpdatePage(pageID, newParentPageID int64, newSubject string) (err error) {
+	tx, err := gDatabase.Begin()
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			err = r.(error)
+		}
+	}()
+
+	// check if the page exists.
+	if isPageExists, err := isPageExists(pageID); err != nil {
+		panic(err)
+	} else if !isPageExists {
+		panic(ErrPageNotFound)
+	}
+
+	// if the new parent is existing page, check it.
+	if newParentPageID != common.RootPageID && newParentPageID != common.RecycleBinPageID {
+		if isPageExists, err := isPageExists(newParentPageID); err != nil {
+			panic(err)
+		} else if !isPageExists {
+			panic(ErrParentPageNotFound)
+		}
+	}
+
+	// perform the update.
+	gDatabase.MustExec("UPDATE pages SET parent_id = ?, subject = ? WHERE id = ?", newParentPageID, newSubject, pageID)
+
+	err = tx.Commit()
+	if err != nil {
+		panic(err)
+	}
+
+	return nil
+}
+
+func DeletePage(pageID int64) (err error) {
+	tx, err := gDatabase.Begin()
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			err = r.(error)
+		}
+	}()
+
+	// the page should be in recycle bin.
+	cursorPageID := pageID
+	for {
+		if err := gDatabase.Get(cursorPageID, "SELECT parent_id FROM pages WHERE id = ?", cursorPageID); err != nil {
+			panic(err)
+		}
+
+		if cursorPageID == common.RootPageID {
+			panic(ErrPageIsNotInRecycleBin)
+		} else if cursorPageID == common.RecycleBinPageID {
+			break
+		}
+	}
+
+	// perform deletion.
+	result, err := gDatabase.Exec("DELETE FROM pages WHERE id = ?", pageID)
+	if err != nil {
+		panic(err)
+	}
+
+	if rowsAffected, err := result.RowsAffected(); err != nil {
+		panic(err)
+	} else if rowsAffected != 1 {
+		panic(ErrPageNotFound)
+	}
+
+	return nil
 }
 
 func GetPagesByParent(parentPageID int64) ([]common.PageSummary, error) {

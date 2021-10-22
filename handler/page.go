@@ -49,18 +49,3 @@ func GetPagesByParent(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, pages)
 }
-
-func GetPage(c echo.Context) error {
-	// TODO : implement this.
-	return nil
-}
-
-func UpdatePage(c echo.Context) error {
-	// TODO : implement this.
-	return nil
-}
-
-func DeletePage(c echo.Context) error {
-	// TODO : implement this.
-	return nil
-}

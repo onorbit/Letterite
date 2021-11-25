@@ -25,5 +25,8 @@ func main() {
 	e.POST("/apis/v1/page/:pageID", handler.UpdatePage)
 	e.DELETE("/apis/v1/page/:pageID", handler.DeletePage)
 
+	// temporary views.
+	e.Static("/ui", "ui")
+
 	e.Logger.Fatal(e.Start(":10900"))
 }
